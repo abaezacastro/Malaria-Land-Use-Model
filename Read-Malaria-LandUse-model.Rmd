@@ -1,0 +1,358 @@
+---
+title: "Malaria-LandUse-Model"
+author: "Andres Baeza"
+date: "Oct 18, 2016"
+output: html_document
+---
+
+#Introduction
+In this document we describe how to run a single simulation of the malaria land-use model described in _Baeza etal._(_in review_) and the analyses for multiple simulations. The model considers the interactive dynamics of malaria and the human economy in a region that begins as an undeveloped state ($A_{U}$).  Development proceeds as the land is transformed at a daily rate ($l$) into a developed state ($A_{D}$) (figure 1). Simultaneous to the transformation of the land, an epidemiological human-mosquito-malaria model and a macroeconomic model that mimics a labor-intensive productive system are also at play, acting in a dynamic and interconnected way. The model is written as a system of differential equations with three modules per region that recreate the processes described in the main text and supporting information. Figure 1 shows a diagram of the epidemiological model in each land-type $U$ and $D$. The second part of the code provide the functions to analyze the model using same data as in the results of the main text, and generate new scenarios.   
+
+
+
+####Figure 1: The epidemiological model for the two land use types
+In each region the human population is divided into epidemiological classes. In untransformed or undeveloped area, the population is divided in 3 classes: susceptible ($S_{U}$) infected ($I_{U}$) and Recovered ($R_{U}$) individuals. Transformed or developed areas can include a class of individuals that do not contract malaria due to better socio-economic conditions. We called them the economically protected class ($P_{D}$). The rate of economic protection is proportional to the capital accumulation $C$. Migration increases population density and susceptible individuals. Economic as well as ecological processes can occurred at different rate in transformed and untransformed regions.
+
+```{r,echo=TRUE,fig.align='center'}
+require(png)     #read png files
+require(grid)    #graphics layout
+img <- readPNG("C:/Users/abaezaca/Documents/Malaria_Economy/Figure_S1_epiModel.png")
+grid.raster(img)
+```
+
+#1) To read a single simulation
+1.1) Read source files with differential equation models
+```{r}
+require(deSolve) # load Solve differential equations
+source('~/Malaria_Economy/odes_malaria_LUCH.R') # Source code of model without land transformation (model_1)
+source('~/Malaria_Economy/odes_malaria_LUCH_l.R') # Source code of model with land transformation (model_2)
+
+#Note: replace "~/Malaria_Economy/" to reflect the path where the files "odes_malaria_LUCH.R" and "odes_malaria_LUCH_l.R" were saved. (e.g. source('~/PATH-To/YOUR-STUFF/odes_malaria_LUCH.R'))
+```
+
+
+
+
+1.2) Define parameter's values to run a single simulation
+```{r}
+parms_LUch<- c(
+        phi=6.0,                        #Total Factor of Productivity
+        alpha=0.18,                     #Elasticity capital
+        beta=0.22,                      #Elasticity land
+        price=4.2,                      #Average crops price
+        costo_p_area=1.7,               #Cost per area planted     
+        cost_p_case=2.6,                #Cost per case of malaria
+        saving_rate=0.003,              #Daily income saving rate 
+        depreciation=0.002,             #Daily capital depreciation rate
+        fecundity_M=115,                #Mosquito fecundity
+        carrying_capacity_M=0.002,      #Mosquito carrying capacity [mosquitoes /mt2]
+        HBI=0.368,                      #Human biting Index [% blood meals from humans]
+        c=0.5,                          #Probability infection from human to mosquito
+        b=0.12,                         #Probability infection from mosquito to human
+        longevity=27,                   #Natural mosquito mortality rate
+        growth_Rate_H= 1 / (55 * 365),  #Human population growth rate
+        mort_Rate_H=1/(55 * 365),       #Natural human mortality rate
+        natutal_rec.rate=500,           #average number of days at which infected individuals acquire immunity [days]
+        treatment_rec.rate=0.07,        #Rate at which infected individuals go back to susceptible per dollar invested in treatment 
+        goto_Eprotect=0.05,             #Rate at which people gain protection against malaria due to socio-economic condition impruvement 
+        goto_poor=0.008,                #Rate people lost protection again disease due to poverty
+        delta_Env=3,                    #Degree or magnitude of ecological differences between under- and developed regions
+        delta_Tech=4,                   #Degree or magnitude of productivity differences between under- and developed regions
+        movement=0.006,                 #Proportion of daily movement of people between regions [% ]
+        sigma=1/(7 *365),               #Loss of immunity [1/time in recovery class before becoming susceptible again [years]
+        ww=0.33,                        #Debilitating effect of disease on the economy [%]
+        density_U=0.0002,               #Population per unit of area in undeveloped region [people/m2]
+        density_D=0.007,                #Population per unit of area in developed region [people/m2]
+        l=2.026865e-05,                 #Rate of land transformation, from AU to AD  [m2/day]
+        v=0.64,                         #Proportion of migrants susceptible to malaria [%]
+        g=1.25                          #Gonotrophyc cycle [days]
+)
+```
+
+
+1.3) Define State variables and initial conditions
+```{r}
+      #INITIAL CONDITIONS
+      A_T<- 3.523e+9                                             #Total Area [km2]*[mts2/km]= 3523 * 1e6
+      AU_p<-1                                                    #Proportion of area untransformed    
+      AU=round(AU_p*A_T,0)                                       #Total untransformed area in hectares
+      AD<- round((1-AU_p)*A_T,0)                                 #Total developed area in hectares
+    
+      I0_p=0.1                                                   #Initial infected population in untransformed land U
+      I0_d_p=0                                                   #Initial infected population in developed land D
+
+      S0<-AU*parms_LUch[["density_U"]]*(1-I0_p)                  #Susceptible population U
+      I0<-AU*parms_LUch[["density_U"]]*I0_p                      #Infected population U
+      R0<-0                                                      #Recovered (immune) population U
+      P0<-0                                                      #Economically protected individuals U (in the untransformed region P=0)
+      
+
+      S0_D<-AD*parms_LUch[["density_D"]]*(1-I0_d_p)              #Susceptible population in Developed land
+      I0_D<-AD*parms_LUch[["density_D"]]*I0_d_p                  #Infected population in D
+      R0_D<-AD*parms_LUch[["density_D"]]*0.0                     #Recovered population in D
+      P0_D<-AD*parms_LUch[["density_D"]]*0.0                     #Economically protected  population in D
+      
+      M0<-AU*(parms_LUch[["carrying_capacity_M"]] /3 )           #Mosquito population in untransformed land (pop. is at a third of it maximal carrying capacity)
+      M0_D<-0                                                    #Mosquito pop. in developed area (M=0)
+      
+      X0<- M0*(1-I0_p)                                           #Population of "healthy" mosquitos (equal to prop. infected humans)
+      W0<-M0*I0_p                                                #Population of infected mosquitos (equal to infected humans)
+      
+      X0_D<-0                                                    #Population of healthy mosquitos in D (M=0)
+      W0_D<-0                                                    #Population of infected mosquitos in D (M=0)
+      
+      
+      C0<-1*AU*parms_LUch[["density_U"]]                         #Initial capital in undeveloped land U
+      C0_D<-10*parms_LUch[["l"]]*AU*parms_LUch[["density_D"]]    #Initial capital at the beginning of the land transformation  
+      
+
+      x0_NO_LUch=c(
+                   C = C0,                                    
+                   X = X0,
+                   W = W0, 
+                   S = S0, 
+                   I = I0,                                        # set initial condition of model without land use change 
+                   R = R0,
+                   P = P0,
+                   A = AU
+                   )
+```
+
+
+1.4) Run the model without changes in land-use for 100 years
+```{r}
+#run model without land-use change
+x_NO_LUch <- lsoda(
+  y=x0_NO_LUch,
+  times=seq(from=1,to=(100*365),by=1), #time in days
+  func=model_1,
+  parms=parms_LUch,
+  hmax=0.1
+)
+```
+
+1.5)Set initial conditions to run model with land-use change
+```{r}
+x0_LUch=c(
+          C = mean(tail(x_NO_LUch[,'C'])), 
+          X = mean(tail(x_NO_LUch[,'X'])),
+          W = mean(tail(x_NO_LUch[,'W'])), 
+          S = mean(tail(x_NO_LUch[,'S'])), #The final state of the simulation without LU change is used as initial condition for the model with transformation  
+          I = mean(tail(x_NO_LUch[,'I'])), 
+          R = mean(tail(x_NO_LUch[,'R'])),
+          P = mean(tail(x_NO_LUch[,'P'])),
+          C_d = C0_D,
+          X_d = X0_D,
+          W_d = W0_D,
+          S_d = S0_D,
+          I_d = I0_D,
+          R_d = R0_D,
+          P_d = P0_D,
+          A = AU,
+          A_d = AD
+          )
+```
+
+1.6)Run model with land use change for 100 years
+```{r}
+##run the model with land-use change using function lsoda
+  x_LUch <- lsoda(
+  y=x0_LUch,
+  times=seq(from=1,to=(100*365),by=1),
+  func=model_2,
+  parms=parms_LUch,
+  hmax=0.1
+)
+```
+
+1.7)Plot incidence pre and post transformation
+```{r,fig.align='center'}
+plot(ts(c(tail(x_NO_LUch[,'I']/rowSums(x_NO_LUch[,c('I','S','R')]),n =  (10*365)),head(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]),n = (30*365))),start = 0,end = 39,frequency = 365),ylab = "Incidence [I/N]",main="Incidences of malaria pre- and post- land use change")
+
+abline(v = 10,col="magenta") #when the tranformatinal process begins
+
+```  
+   
+   
+#2) Analyses of the model   
+
+2.6) Read the outputs presented in the main text using:
+To replicate results presented in the main text read the file "Results_Revision":
+```{r}   
+load("~/Malaria_Economy/Results_Revision") #load outputs obtained using from parameters explored in the main document
+```
+
+
+2.7)To select the set of simulations resulting in $I^{*}_{pre} > 0$ simply run:
+```{r}   
+Results_Parameters_Revision<-subset(Results_Parameters_Revision,Initial_I > 0.01 & W_mosquitoes > 0.01) 
+```
+
+
+2.8) Run a sensitivity analysis using the differences $I^{*}_{diff}=I^{*}_{post} - I^{*}_{pre}$ and $I^{*}_{peak-diff}=I^{*}_{peak} - I^{*}_{pre}$ (as in the main text):
+```{r,fig.height=6,fig.width=16,fig.align='center'}   
+require(sensitivity)   #load package sensitivity
+
+par(mfrow=c(1,2),cex.main=2.0,cex.axis=2.0,cex.label =2) #set the figure stage for two plots
+
+x<-pcc(X=Results_Parameters_Revision[,-(1:11)],y=(Results_Parameters_Revision$final_I -Results_Parameters_Revision$Initial_I),rank=F)    #calculate patial correlation
+barplot(as.vector(x$PCC[[1]]),names.arg = names(Results_Parameters_Revision[,-(1:11)]),cex.names=0.7,las=2,main='Long term differences (I*_Diff)',ylab=expression(rho))   # barplot 1
+
+
+convex_dy=subset(Results_Parameters_Revision, type_dynamics == 3 | type_dynamics == 5) #select simulations defined as "convex"
+x<-pcc(X=convex_dy[,-(1:11)],y=convex_dy$max_I - convex_dy$Initial_I,rank=F)  #calculate patial correlation
+barplot(as.vector(x$PCC[[1]]),names.arg = names(convex_dy[,-(1:11)]),cex.names=0.7,las=2,main='Transient differences (I*_peak)',ylab=expression(rho))  # barplot 2
+```     
+
+
+
+2.1) To generate a different set of parameter values, in the same range as in the main text.  
+```{r}   
+require(tgp) #load package tgp
+s2_new <- lhs(10000,rbind(                                               #generate the limits of the hypercube
+  c(1,10),                #Total Factor of Productivity phi
+  c(0.1,0.3),             #Elasticity capital alpha
+  c(0.1,0.3),             #Elasticity land beta
+  c(1,10),                #Average crops price price
+  c(1,5),                 #Cost per area planted costo_p_area
+  c(1,6),                 #Cost per case of malaria cost_p_case
+  c(0.001,0.01),          #Daily income saving rate  saving_rate
+  c(0.001,0.004),         #Daily capital depreciation rate depreciation 
+  c(50,200),              #Mosquito fecundity fecundity_M
+  c(0.001,0.01),          #Mosquito carrying capacity [M/m2] carrying_capacity_M,
+  c(0.2,1),               #Human biting/blood Index  HBI
+  c(0.01,0.6),            #Probability infection from human to mosquito cc
+  c(0.01,0.6),            #Probability infection from mosquito to human b
+  c(12.5,30),             #Natural mosquito mortality rate longevity
+  c(30,(3*365)),          #Average time  a person is infectious 
+  c(0,0.1),               #Rate at which infected individuals go back to susceptible per dollar invested in treatment 
+  c(0.001,0.1),           #Rate at which people gain protection against malaria due to improvement in socio-economic conditionss 
+  c(0.0001,0.01),         #Rate at which infected individuals go back to susceptible do to degradation of economic investment. 
+  c(1,4),                 #Degree or magnitude of ecological differences between under- and developed regions
+  c(1,5),                 #Degree or magnitude of productivity differences between under- and developed regions
+  c(0,0.01),              #Proportion of daily movement of people between regions
+  c(1/(1*365),1/(7*365)), #Loss of immunity [1/time] in recovery class before becoming susceptible again [1/3 years]
+  c(0.3,1),               #Debilitating effect of disease on the economy
+  c(0.0001,0.001),        #Population per unit of area in undeveloped region  
+  c(0.001,0.01),          #Population per unit of area in developed region  
+  c(0,1),                 #Proportion of migrants susceptible to malaria  
+  c(1,4),                 #Gonotrophyc cycle
+  c(1.5e-05,3e-05)        #Land use change rate
+)
+)
+```   
+
+2.2) Add the names of the outputs to save in matrix's columns
+```{r} 
+colnames(s2_new)<-c(
+  "phi",
+  "alpha",
+  "beta",
+  "price",
+  "costo_p_area",
+  "cost_p_case",
+  "saving_rate",
+  "depreciation",
+  "fecundity_M", 
+  "carrying_capasity_M",
+  "HBI",
+  "prob_inf_HM",
+  "prob_inf_MH",
+  "mosquito_lifetime",
+  "days_person_infectious",
+  "treatment",
+  "goto_reach",
+  "goto_poor",
+  "delta_Eco",
+  "delta_Tech",
+  "movement",
+  "sigma",
+  "w",
+  "density_U",
+  "density_D",
+  "v",
+  "g",
+  "l")
+```     
+
+To explore the entire parameters' space, the model must be run in a loop for the 10000 different scenarios created before. In each cycle of the loop we calculated 1) the vector for the parameters that would run the differential equation models (step 1.2). Define the initial conditions (step 1.3). Run of the model in conditions pre-transformation (step 1.4). Set initial conditions for the model under land use change (step 1.5). Run the model under land use change (step 1.6).
+
+
+2.3) To save results in each run of the model first create a table with the dimensions of the hypercube, in this case (10000x11)
+```{r}   
+table_results=matrix(ncol=11,nrow=10000)        #define table
+colnames(table_results)<-c("which.max","which.min","dif_Inc","type_dynamics","Initial_I","final_I","max_I","Capital","Capital_D","W_mosquitoes","W_mosquitoes_D")  # define names of quantities to save
+```
+
+2.4) Fill each row of table_results using model outputs from section 1 of this document
+```{r}   
+#generate an output vector of size 11
+output=c( 
+   which.max(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')])) #which.max
+   
+  ,which.min(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]))#which.min
+  
+  ,mean(tail(x_NO_LUch[,'I']/rowSums(x_NO_LUch[,c('I','S','R','P')]),10)) - mean(tail(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]),10))##I_dif
+  
+  ,0                  #type_dynamics defined next 
+  ,mean(tail(x_NO_LUch[,'I']/rowSums(x_NO_LUch[,c('I','S','R','P')]),10))# Initial_I
+  
+  ,mean(tail(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]),100))#final_I
+  
+  ,max(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]))[1] #max_I
+  
+  ,mean(tail(x_NO_LUch[,'C']/rowSums(x_NO_LUch[,c('I','S','R','P')]),10)) #Capital
+  
+  ,mean(tail(rowSums(x_LUch[,c('C','C_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]),100))#Capital_D
+  
+  ,mean(tail(x_NO_LUch[,'W']/rowSums(x_NO_LUch[,c('X','W')]),10))#W_mosquitoes 
+  
+  ,mean(tail(rowSums(x_LUch[,c('W','W_d')])/rowSums(x_LUch[,c('X','W','X_d','W_d')]),100))#W_mosquitoes_D
+  
+    )
+print(output)
+```
+
+2.5) To Classify trajectories
+fill-out column 4 ("type_dynamics") of table-results-Revision with the type of trajetory obtained (here using data presented in the main text).
+
+```{r,echo=TRUE}   
+print(output[1]==1 & output[2]>36000 & output[3]>0)                     #1: Monotonic decrease
+print(output[1]>36000 & output[2]==1 & output[3]<0)                     #2: Monotonic increase
+print(output[1]>1 & output[1]<36000 & output[2]>36000 & output[3]>0)    #3: Convex decrease
+print(output[1]>36000 & output[2]>1 & output[2]<36000 & output[3]<0)    #4: Concave increase
+print(output[1]>1 & output[1]<36000 & output[1]==1 & output[3]<0)       #5: Convex increase
+print(output[1]==1 & output[2]>1 & output[2]<36000 & output[3]>0)       #6: Concave decrease
+```     
+
+2.6) Pie plots with the proportion of simulations clasified in each trajectory (as in the main text)
+```{r,echo=TRUE}   
+### calcula proportions###
+#1) 6 types
+slices_LI<-c(length(which(Results_Parameters_Revision[,4]==1)),
+             length(which(Results_Parameters_Revision[,4]==2)),
+             length(which(Results_Parameters_Revision[,4]==3)),
+             length(which(Results_Parameters_Revision[,4]==4)),
+             length(which(Results_Parameters_Revision[,4]==5)),
+             length(which(Results_Parameters_Revision[,4]==6)))
+    
+    
+slices_Dec_or_Inc<-c(length(which(Results_Parameters_Revision[,3]>0)),
+                     length(which(Results_Parameters_Revision[,3]<0)))
+    
+#2) 3 types "convex" "concave" and "monotonic"
+slices_LI3ty<-c(length(which(Results_Parameters_Revision[,4]==1))+
+                length(which(Results_Parameters_Revision[,4]==2)),
+                length(which(Results_Parameters_Revision[,4]==3))+length(which(Results_Parameters_Revision[,4]==5)),
+               length(which(Results_Parameters_Revision[,4]==4))+                    
+               length(which(Results_Parameters_Revision[,4]==6)))
+  
+#make the plots
+names<-c('Monotonic D.','Monotonic I.',"Convex D.","Concave I.", "Convex I.","Concave D.")
+par(mfrow=c(1,3))
+pie(slices_Dec_or_Inc,labels=c("Decrease","Increase"),cex.lab=2.0)
+pie(slices_LI3ty, labels = c("Monotonic","Convex","Concave"), main="")  
+pie(slices_LI, labels = names, main="")
+ 
+   
+```
