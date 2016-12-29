@@ -317,12 +317,12 @@ print(output)
 fill-out column 4 ("type_dynamics") of table-results-Revision with the type of trajetory obtained (here using data presented in the main text).
 
 ```{r,echo=TRUE}   
-print(output[1]==1 & output[2]>36000 & output[3]>0)                     #1: Monotonic decrease
-print(output[1]>36000 & output[2]==1 & output[3]<0)                     #2: Monotonic increase
-print(output[1]>1 & output[1]<36000 & output[2]>36000 & output[3]>0)    #3: Convex decrease
-print(output[1]>36000 & output[2]>1 & output[2]<36000 & output[3]<0)    #4: Concave increase
-print(output[1]>1 & output[1]<36000 & output[1]==1 & output[3]<0)       #5: Convex increase
-print(output[1]==1 & output[2]>1 & output[2]<36000 & output[3]>0)       #6: Concave decrease
+print(output[1]==1 & output[2]>50 * 365 & output[3]>0)                     #1: Monotonic decrease
+print(output[1]>50*365 & output[2]==1 & output[3]<0)                     #2: Monotonic increase
+print(output[1]>1 & output[1]<50 *365 & output[2]>50 *365 & output[3]>0)    #3: Convex decrease
+print(output[1]>50 *365 & output[2]>1 & output[2]<50 *365 & output[3]<0)    #4: Concave increase
+print(output[1]>1 & output[1]<50 *365 & output[1]==1 & output[3]<0)       #5: Convex increase
+print(output[1]==1 & output[2]>1 & output[2]<50 *365 & output[3]>0)       #6: Concave decrease
 ```     
 
 2.6) Pie plots with the proportion of simulations clasified in each trajectory (as in the main text)
