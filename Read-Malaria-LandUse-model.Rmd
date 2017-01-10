@@ -36,30 +36,30 @@ source('~/Malaria_Economy/odes_malaria_LUCH_l.R') # Source code of model with la
 1.2) Define parameter's values to run a single simulation
 ```{r}
 parms_LUch<- c(
-        phi=6.0,                        #Total Factor of Productivity
+        phi=10,                        #Total Factor of Productivity
         alpha=0.18,                     #Elasticity capital
-        beta=0.22,                      #Elasticity land
+        beta=0.2,                      #Elasticity land
         price=4.2,                      #Average crops price
         costo_p_area=1.7,               #Cost per area planted     
         cost_p_case=2.6,                #Cost per case of malaria
-        saving_rate=0.003,              #Daily income saving rate 
-        depreciation=0.002,             #Daily capital depreciation rate
+        saving_rate=0.004,              #Daily income saving rate 
+        depreciation=0.0025,             #Daily capital depreciation rate
         fecundity_M=115,                #Mosquito fecundity
         carrying_capacity_M=0.002,      #Mosquito carrying capacity [mosquitoes /mt2]
-        HBI=0.368,                      #Human biting Index [% blood meals from humans]
+        HBI=0.868,                      #Human biting Index [% blood meals from humans]
         c=0.5,                          #Probability infection from human to mosquito
         b=0.12,                         #Probability infection from mosquito to human
         longevity=27,                   #Natural mosquito mortality rate
         growth_Rate_H= 1 / (55 * 365),  #Human population growth rate
         mort_Rate_H=1/(55 * 365),       #Natural human mortality rate
         natutal_rec.rate=500,           #average number of days at which infected individuals acquire immunity [days]
-        treatment_rec.rate=0.07,        #Rate at which infected individuals go back to susceptible per dollar invested in treatment 
-        goto_Eprotect=0.05,             #Rate at which people gain protection against malaria due to socio-economic condition impruvement 
-        goto_poor=0.008,                #Rate people lost protection again disease due to poverty
+        treatment_rec.rate=1/90,        #Rate at which infected individuals go back to susceptible per dollar invested in treatment 
+        goto_Eprotect=0.01,             #Rate at which people gain protection against malaria due to socio-economic condition impruvement 
+        goto_poor=100,                 #Rate people lost protection again disease due to poverty
         delta_Env=3,                    #Degree or magnitude of ecological differences between under- and developed regions
         delta_Tech=4,                   #Degree or magnitude of productivity differences between under- and developed regions
         movement=0.006,                 #Proportion of daily movement of people between regions [% ]
-        sigma=1/(7 *365),               #Loss of immunity [1/time in recovery class before becoming susceptible again [years]
+        sigma=1/(3 *365),               #Loss of immunity [1/time in recovery class before becoming susceptible again [years]
         ww=0.33,                        #Debilitating effect of disease on the economy [%]
         density_U=0.0002,               #Population per unit of area in undeveloped region [people/m2]
         density_D=0.007,                #Population per unit of area in developed region [people/m2]
@@ -167,10 +167,12 @@ x0_LUch=c(
 
 1.7)Plot incidence pre and post transformation
 ```{r,fig.align='center'}
-plot(ts(c(tail(x_NO_LUch[,'I']/rowSums(x_NO_LUch[,c('I','S','R')]),n =  (10*365)),head(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]),n = (30*365))),start = 0,end = 39,frequency = 365),ylab = "Incidence [I/N]",main="Incidences of malaria pre- and post- land use change")
+par(mfrow=c(2,1))
+  plot(ts(c(tail(x_NO_LUch[,'I']/rowSums(x_NO_LUch[,c('I','S','R')]),n =  (10*365)),head(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]),n = (30*365))),start = 0,end = 39,frequency = 365),ylab = "Incidence [I/N]",main="Incidences of malaria pre- and post- land use change")
 
 abline(v = 10,col="magenta") #when the tranformatinal process begins
 
+plot(ts(head(x_LUch[,'C_d']/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]),n = (30*365)),start = 0,end = 29,frequency = 365),ylab="")
 ```  
    
    
@@ -179,7 +181,7 @@ abline(v = 10,col="magenta") #when the tranformatinal process begins
 2.6) Read the outputs presented in the main text using:
 To replicate results presented in the main text read the file "Results_Revision":
 ```{r}   
-load("~/Malaria_Economy/Results_Revision") #load outputs obtained using from parameters explored in the main document
+load("~/Malaria_Economy/Results_SecondRevision") #load outputs obtained using from parameters explored in the main document
 ```
 
 
@@ -292,9 +294,10 @@ output=c(
    
   ,which.min(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]))#which.min
   
-  ,mean(tail(x_NO_LUch[,'I']/rowSums(x_NO_LUch[,c('I','S','R','P')]),10)) - mean(tail(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]),10))##I_dif
+  ,mean(tail(x_NO_LUch[,'I']/rowSums(x_NO_LUch[,c('I','S','R','P')]),10)) - 
+    
+    mean(tail(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]),10))##I_dif
   
-  ,0                  #type_dynamics defined next 
   ,mean(tail(x_NO_LUch[,'I']/rowSums(x_NO_LUch[,c('I','S','R','P')]),10))# Initial_I
   
   ,mean(tail(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]),100))#final_I
@@ -308,7 +311,9 @@ output=c(
   ,mean(tail(x_NO_LUch[,'W']/rowSums(x_NO_LUch[,c('X','W')]),10))#W_mosquitoes 
   
   ,mean(tail(rowSums(x_LUch[,c('W','W_d')])/rowSums(x_LUch[,c('X','W','X_d','W_d')]),100))#W_mosquitoes_D
-  
+  ,any(diff(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]))>0)
+  ,any(diff(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]))<0)
+  ,min(rowSums(x_LUch[,c('I','I_d')])/rowSums(x_LUch[,c('I','S','R','P','I_d','S_d','R_d','P_d')]))[1]
     )
 print(output)
 ```
@@ -317,12 +322,12 @@ print(output)
 fill-out column 4 ("type_dynamics") of table-results-Revision with the type of trajetory obtained (here using data presented in the main text).
 
 ```{r,echo=TRUE}   
-print(output[1]==1 & output[2]>50 * 365 & output[3]>0)                     #1: Monotonic decrease
-print(output[1]>50*365 & output[2]==1 & output[3]<0)                     #2: Monotonic increase
-print(output[1]>1 & output[1]<50 *365 & output[2]>50 *365 & output[3]>0)    #3: Convex decrease
-print(output[1]>50 *365 & output[2]>1 & output[2]<50 *365 & output[3]<0)    #4: Concave increase
-print(output[1]>1 & output[1]<50 *365 & output[1]==1 & output[3]<0)       #5: Convex increase
-print(output[1]==1 & output[2]>1 & output[2]<50 *365 & output[3]>0)       #6: Concave decrease
+print(output[1]<2 & output[3]>0 & output[11] ==0 & output[12]==1)#1: Monotonic decrease
+print(output[2]<2 & output[3]<0  & output[11] ==1 & output[12]==0)#2: Monotonic increase
+print(output[1]>1 & output[1]<(50 *365) & output[3]>0)    #3: Convex decrease
+print(output[1]>50 *365 & output[2]>1 & output[2]<(50 *365) & output[3]<0)    #4: Concave increase
+print(output[2]<2 & output[1]>1 & output[1]<(50 *365) & output[3]<0)       #5: Convex increase
+print(output[1]<2 & output[2]>1 & output[2]<(50 *365) & output[3]>0)       #6: Concave decrease
 ```     
 
 2.6) Pie plots with the proportion of simulations clasified in each trajectory (as in the main text)
